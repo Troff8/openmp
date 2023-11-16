@@ -122,9 +122,8 @@ int main(int argc, char** argv)
 
     // std::cout<< N << " " << K << " " << T << " " << L << " " << Lx << " " << Ly << " " << Lz << "\n"; 
 
-    #pragma omp parallel for
+    #pragma omp parallel for collapse(2)
     for (int i = 0; i <= N; i++) {
-        #pragma omp parallel for
         for (int j = 0; j <= N; j++) {
             u_prev[get_index(0, i, j)] = u_analytical(0, i * Hy, j * Hz, 0);
             u_prev[get_index(N, i, j)] = u_analytical(Lx, i * Hy, j * Hz, 0);
@@ -138,18 +137,15 @@ int main(int argc, char** argv)
     }
   
 
-    #pragma omp parallel for
+    #pragma omp parallel for collapse(3)
     for (int i = 1; i < N; i++) 
-        #pragma omp parallel for
         for (int j = 1; j < N; j++)
-            #pragma omp parallel for
             for (int k = 1; k < N; k++)
                 u_prev[get_index(i, j, k)] = phi(i * Hx, j * Hy, k * Hz);
             
         
-    #pragma omp parallel for
+    #pragma omp parallel for collapse(2)
     for (int i = 0; i <= N; i++) {
-        #pragma omp parallel for
         for (int j = 0; j <= N; j++) {
             u_current[get_index(0, i, j)] = u_analytical(0, i * Hy, j * Hz, Tau);
             u_current[get_index(N, i, j)] = u_analytical(Lx, i * Hy, j * Hz, Tau);
@@ -163,11 +159,9 @@ int main(int argc, char** argv)
     }
     
 
-    #pragma omp parallel for
+    #pragma omp parallel for collapse(3)
     for (int i = 1; i < N; i++)
-        #pragma omp parallel for
         for (int j = 1; j < N; j++)
-            #pragma omp parallel for
             for (int k = 1; k < N; k++)
                 u_current[get_index(i, j, k)] = u_prev[get_index(i, j, k)] + Tau * Tau * A2 / 2 * delta_h(i, j, k, u_prev);
 
@@ -175,9 +169,8 @@ int main(int argc, char** argv)
 
     for (int step = 2; step <= STEPS; step++) {
 
-        #pragma omp parallel for
+    #pragma omp parallel for collapse(2)
         for (int i = 0; i <= N; i++) {
-            #pragma omp parallel for
             for (int j = 0; j <= N; j++) {
                 u_next[get_index(0, i, j)] = u_analytical(0, i * Hy, j * Hz, step * Tau);
                 u_next[get_index(N, i, j)] = u_analytical(Lx, i * Hy, j * Hz, step * Tau);
@@ -192,11 +185,9 @@ int main(int argc, char** argv)
 
 
 
-        #pragma omp parallel for
+    #pragma omp parallel for collapse(3)
         for (int i = 1; i < N; i++)
-            #pragma omp parallel for
             for (int j = 1; j < N; j++)
-                #pragma omp parallel for
                 for (int k = 1; k < N; k++)
                     u_next[get_index(i, j, k)] = 2 * u_current[get_index(i, j, k)] - u_prev[get_index(i, j, k)] + Tau * Tau * A2 * delta_h(i, j, k, u_current);
 
@@ -211,11 +202,9 @@ int main(int argc, char** argv)
 
     double error;
     double error_max = 0;
-    #pragma omp parallel for reduction(max:error_max)
+    #pragma omp parallel for collapse(3) reduction(max: error)
     for (int i = 0; i <= N; i++)
-        #pragma omp parallel for reduction(max:error_max)
         for (int j = 0; j <= N; j++)
-            #pragma omp parallel for reduction(max:error_max)
             for (int k = 0; k <= N; k++) {
                     error = std::fabs(u_current[get_index(i, j, k)] - u_analytical(i * Hx, j * Hy, k * Hz, STEPS * Tau));
                     if (error > error_max) {
@@ -233,11 +222,9 @@ int main(int argc, char** argv)
 
    
 
-    #pragma omp parallel for
+    #pragma omp parallel for collapse(3)
         for (int i = 0; i <= N; i++)
-            #pragma omp parallel for
             for (int j = 0; j <= N; j++)
-                #pragma omp parallel for
                 for (int k = 0; k <= N; k++)
                     u_next[get_index(i, j, k)] = u_analytical(i * Hx, j * Hy, k * Hz, STEPS * Tau);
 
@@ -245,11 +232,9 @@ int main(int argc, char** argv)
     createJson(u_next, STEPS * Tau, analytical_filename.c_str());
 
 
-    #pragma omp parallel for
+    #pragma omp parallel for collapse(3)
         for (int i = 0; i <= N; i++)
-            #pragma omp parallel for
             for (int j = 0; j <= N; j++)
-                #pragma omp parallel for
                 for (int k = 0; k <= N; k++)               
                     u_prev[get_index(i, j, k)] = std::fabs(u_current[get_index(i, j, k)] - u_next[get_index(i, j, k)]);
     std::string error_filename = "errors_for_" + std::to_string(N) + "_" + std::to_string(K) + "_" + std::to_string(T) + "_" + L_format + ".json";
