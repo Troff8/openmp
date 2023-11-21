@@ -26,9 +26,10 @@ double* u_prev;
 double* u_current;
 double* u_next;
 
+// добавляем вершину справа для оси где период условие.  (итого n+2 вершин для одной оси)
 int get_index(int i, int j, int k)
 {
-    return i * (N + 1) * (N + 1) + j * (N + 1) + k;
+    return i * (N + 2) * (N + 2) + j * (N + 2) + k;
 }
 
 void createJson(const double *u, double t, const char *path) {
@@ -103,13 +104,14 @@ int main(int argc, char** argv)
     Ly = L;
     Lz = L;
 
-    Hx = Lx / N;
-    Hy = Ly / N;
-    Hz = Lz / N;
+    Hx = Lx / (N);
+    Hy = Ly / (N);
+    Hz = Lz / (N);
     Tau = T / K;
     A2 = 1;
 
-    SIZE = (N + 1) * (N + 1) * (N + 1);
+    // добавляем вершину справа для оси где период условие. (итого n+2 вершин для одной оси)
+    SIZE = (N + 2) * (N + 2) * (N + 2);
     u_prev = new double[SIZE];
     u_current = new double[SIZE];
     u_next = new double[SIZE];
@@ -122,99 +124,87 @@ int main(int argc, char** argv)
 
     // std::cout<< N << " " << K << " " << T << " " << L << " " << Lx << " " << Ly << " " << Lz << "\n"; 
 
-    #pragma omp parallel for collapse(2)
-    for (int i = 0; i <= N; i++) {
-        for (int j = 0; j <= N; j++) {
-            u_prev[get_index(0, i, j)] = u_analytical(0, i * Hy, j * Hz, 0);
-            u_prev[get_index(N, i, j)] = u_analytical(Lx, i * Hy, j * Hz, 0);
-
-            u_prev[get_index(i, 0, j)] = u_analytical(i * Hx, 0, j * Hz, 0);
-            u_prev[get_index(i, N, j)] = u_analytical(i * Hx, Ly, j * Hz, 0);
-
-            u_prev[get_index(i, j, 0)] = u_analytical(i * Hx, j * Hy, 0, 0);
-            u_prev[get_index(i, j, N)] = u_analytical(i * Hx, j * Hy, Lz, 0);
-        }
-    }
-  
-
     #pragma omp parallel for collapse(3)
-    for (int i = 1; i < N; i++) 
-        for (int j = 1; j < N; j++)
-            for (int k = 1; k < N; k++)
+    for (int i = 1; i <= N; i++) 
+        for (int j = 1; j <= N; j++)
+            for (int k = 1; k <= N; k++)
                 u_prev[get_index(i, j, k)] = phi(i * Hx, j * Hy, k * Hz);
-            
-        
+
     #pragma omp parallel for collapse(2)
     for (int i = 0; i <= N; i++) {
         for (int j = 0; j <= N; j++) {
-            u_current[get_index(0, i, j)] = u_analytical(0, i * Hy, j * Hz, Tau);
-            u_current[get_index(N, i, j)] = u_analytical(Lx, i * Hy, j * Hz, Tau);
+            u_prev[get_index(0, i, j)] = u_prev[get_index(N, i, j)]; 
+            u_prev[get_index(N + 1, i, j)] = u_prev[get_index(1, i, j)];
 
-            u_current[get_index(i, 0, j)] = u_analytical(i * Hx, 0, j * Hz, Tau);
-            u_current[get_index(i, N, j)] = u_analytical(i * Hx, Ly, j * Hz, Tau);
+            u_prev[get_index(i, 0, j)] = u_prev[get_index(i, N, j)];
+            u_prev[get_index(i, N + 1, j)] = u_prev[get_index(i, 1, j)];
 
-            u_current[get_index(i, j, 0)] = u_analytical(i * Hx, j * Hy, 0, Tau);
-            u_current[get_index(i, j, N)] = u_analytical(i * Hx, j * Hy, Lz, Tau);
+            u_prev[get_index(i, j, 0)] = u_prev[get_index(i, j, N )];
+            u_prev[get_index(i, j, N + 1)] = u_prev[get_index(i, j, 1)];
         }
-    }
-    
+    }   
+
 
     #pragma omp parallel for collapse(3)
-    for (int i = 1; i < N; i++)
-        for (int j = 1; j < N; j++)
-            for (int k = 1; k < N; k++)
+    for (int i = 1; i <= N; i++)
+        for (int j = 1; j <= N; j++)
+            for (int k = 1; k <= N; k++)
                 u_current[get_index(i, j, k)] = u_prev[get_index(i, j, k)] + Tau * Tau * A2 / 2 * delta_h(i, j, k, u_prev);
 
+    #pragma omp parallel for collapse(2)
+    for (int i = 0; i <= N; i++) {
+        for (int j = 0; j <= N; j++) {
+            u_current[get_index(0, i, j)] = u_current[get_index(N, i, j)]; 
+            u_current[get_index(N + 1, i, j)] = u_current[get_index(1, i, j)];
+
+            u_current[get_index(i, 0, j)] = u_current[get_index(i, N, j)];
+            u_current[get_index(i, N + 1, j)] = u_current[get_index(i, 1, j)];
+
+            u_current[get_index(i, j, 0)] = u_current[get_index(i, j, N )];
+            u_current[get_index(i, j, N + 1)] = u_current[get_index(i, j, 1)];
+        }
+    }
 
 
     for (int step = 2; step <= STEPS; step++) {
 
-    #pragma omp parallel for collapse(2)
+
+        #pragma omp parallel for collapse(3)
+            for (int i = 1; i <= N; i++)
+                for (int j = 1; j <= N; j++)
+                    for (int k = 1; k <= N; k++)
+                        u_next[get_index(i, j, k)] = 2 * u_current[get_index(i, j, k)] - u_prev[get_index(i, j, k)] + Tau * Tau * A2 * delta_h(i, j, k, u_current);
+
+        #pragma omp parallel for collapse(2)
         for (int i = 0; i <= N; i++) {
             for (int j = 0; j <= N; j++) {
-                u_next[get_index(0, i, j)] = u_analytical(0, i * Hy, j * Hz, step * Tau);
-                u_next[get_index(N, i, j)] = u_analytical(Lx, i * Hy, j * Hz, step * Tau);
+                u_next[get_index(0, i, j)] = u_next[get_index(N, i, j)]; 
+                u_next[get_index(N + 1, i, j)] = u_next[get_index(1, i, j)];
 
-                u_next[get_index(i, 0, j)] = u_analytical(i * Hx, 0, j * Hz, step * Tau);
-                u_next[get_index(i, N, j)] = u_analytical(i * Hx, Ly, j * Hz, step * Tau);
+                u_next[get_index(i, 0, j)] = u_next[get_index(i, N, j)];
+                u_next[get_index(i, N + 1, j)] = u_next[get_index(i, 1, j)];
 
-                u_next[get_index(i, j, 0)] = u_analytical(i * Hx, j * Hy, 0, step * Tau);
-                u_next[get_index(i, j, N)] = u_analytical(i * Hx, j * Hy, Lz, step * Tau);
+                u_next[get_index(i, j, 0)] = u_next[get_index(i, j, N)];
+                u_next[get_index(i, j, N + 1)] = u_next[get_index(i, j, 1)];
             }
         }
-
-
-
-    #pragma omp parallel for collapse(3)
-        for (int i = 1; i < N; i++)
-            for (int j = 1; j < N; j++)
-                for (int k = 1; k < N; k++)
-                    u_next[get_index(i, j, k)] = 2 * u_current[get_index(i, j, k)] - u_prev[get_index(i, j, k)] + Tau * Tau * A2 * delta_h(i, j, k, u_current);
 
         double* tmp = u_prev;
         u_prev = u_current;
         u_current = u_next;
         u_next = tmp;
     }
+  
+    end_time = omp_get_wtime();
 
 
-
-
-    double error;
-    double error_max = 0;
-    #pragma omp parallel for collapse(3) reduction(max: error)
+    double error = 0;
     for (int i = 0; i <= N; i++)
         for (int j = 0; j <= N; j++)
             for (int k = 0; k <= N; k++) {
-                    error = std::fabs(u_current[get_index(i, j, k)] - u_analytical(i * Hx, j * Hy, k * Hz, STEPS * Tau));
-                    if (error > error_max) {
-                        error_max = error;
-                    }
+                    error = std::max(error, std::fabs(u_current[get_index(i, j, k)] - u_analytical(i * Hx, j * Hy, k * Hz, STEPS * Tau)));
             }
 
-
-    end_time = omp_get_wtime();
-    // std::cout << "остановили таймер\n";
 
 
     std::string calculated_filename = "calculated_for_" + std::to_string(N) + "_" + std::to_string(K) + "_" + std::to_string(T) + "_" + L_format + ".json";
@@ -244,7 +234,7 @@ int main(int argc, char** argv)
 
     std::string filename = "stats_for_" + std::to_string(N) + "_" + std::to_string(K) + "_" + std::to_string(T) + "_" + std::to_string(nthreads) + "_" + L_format + ".txt";
     std::ofstream fout(filename, std::ios_base::app);
-    fout << N << " " << K << " " << T << " " << nthreads << " " << error_max << " " << end_time - start_time << std::endl;
+    fout << N << " " << K << " " << T << " " << nthreads << " " << error << " " << end_time - start_time << std::endl;
     fout.close();
 
 
