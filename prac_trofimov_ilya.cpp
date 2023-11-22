@@ -10,6 +10,7 @@
 
 int N;
 int SIZE;
+// в методичке просят для STEPS=20  'Следует выполнить около 20 шагов по времени'
 int K = 20;
 double T = 0.01;
 double L = 1.0;
@@ -80,10 +81,12 @@ double delta_h(int i, int j, int k, double* matrix)
 
 int main(int argc, char** argv)
 {
+    // для ввода параметров из терминал например ./prac2 128 20 0.01 pi 
     for (size_t i = 0; i < argc; i++)
     {
         // std::cout << argv[i] << "\n"; 
     }
+    // чтобы получить значение количества потоков
     int nthreads = 1; 
     #pragma omp parallel
     {
@@ -95,7 +98,7 @@ int main(int argc, char** argv)
     K = atoi(argv[2]);
     STEPS = K;
     T = atof(argv[3]);
-    std::string L_format = argv[4];
+    std::string L_format = argv[4]; // pi - M_PI, 1 - 1.0
     if (L_format == "pi" )
         L = M_PI;
     else
@@ -110,7 +113,7 @@ int main(int argc, char** argv)
     Tau = T / K;
     A2 = 1;
 
-    // добавляем вершину справа для оси где период условие. (итого n+2 вершин для одной оси)
+    // добавляем вершину справа для оси где период условие.
     SIZE = (N + 2) * (N + 2) * (N + 2);
     u_prev = new double[SIZE];
     u_current = new double[SIZE];
@@ -133,7 +136,7 @@ int main(int argc, char** argv)
     #pragma omp parallel for collapse(2)
     for (int i = 0; i <= N; i++) {
         for (int j = 0; j <= N; j++) {
-            u_prev[get_index(0, i, j)] = u_prev[get_index(N, i, j)]; 
+            u_prev[get_index(0, i, j)] = u_prev[get_index(N, i, j)];
             u_prev[get_index(N + 1, i, j)] = u_prev[get_index(1, i, j)];
 
             u_prev[get_index(i, 0, j)] = u_prev[get_index(i, N, j)];
@@ -193,6 +196,7 @@ int main(int argc, char** argv)
         u_prev = u_current;
         u_current = u_next;
         u_next = tmp;
+        // при выходе из цикла u_20 (последнее) хранится в u_current, u_19 (пред последнее) в u_prev
     }
   
     end_time = omp_get_wtime();
@@ -211,7 +215,8 @@ int main(int argc, char** argv)
     createJson(u_current, STEPS * Tau, calculated_filename.c_str());
 
    
-
+    // сохранения всех значений матрицы u_аналитической (u_20) – 
+    // Важно – значения u_analytical на шаге u_20 будем записывать в матрицу u_next, чтобы не испортить значения хранящиеся в u_current (u_20)
     #pragma omp parallel for collapse(3)
         for (int i = 0; i <= N; i++)
             for (int j = 0; j <= N; j++)
@@ -222,6 +227,7 @@ int main(int argc, char** argv)
     createJson(u_next, STEPS * Tau, analytical_filename.c_str());
 
 
+    // сохранения погрешностей для всех значений разности двух матриц u_посчитанной и u_аналитической (u_20)
     #pragma omp parallel for collapse(3)
         for (int i = 0; i <= N; i++)
             for (int j = 0; j <= N; j++)
