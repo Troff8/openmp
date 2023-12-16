@@ -117,9 +117,9 @@ void alloc_update_bufs(buffers_sms* bufs)
     }
 }
 
-void =wait_all_requests(double* matrix, struct buffers_sms* bufs,MPI_Request* request_x,MPI_Request* request_y,MPI_Request* request_z){
+void wait_all_requests(double* matrix, struct buffers_sms* bufs,MPI_Request* request_x,MPI_Request* request_y,MPI_Request* request_z){
     if (request_x != nullptr) {
-        MPI_Status* statuses = new MPI_Status[sizeof(MPI_Status) * 4];
+        MPI_Status* statuses = new MPI_Status[4];
         MPI_Waitall(4, request_x, statuses);
         delete[] statuses;
         delete[] request_x;
@@ -142,7 +142,7 @@ void =wait_all_requests(double* matrix, struct buffers_sms* bufs,MPI_Request* re
     }
 
     if (request_y != nullptr) {
-        MPI_Status* statuses = new MPI_Status[sizeof(MPI_Status) * 4];
+        MPI_Status* statuses = new MPI_Status[4];
         MPI_Waitall(4, request_y, statuses);
         delete[] statuses;
         delete[] request_y;
@@ -164,7 +164,7 @@ void =wait_all_requests(double* matrix, struct buffers_sms* bufs,MPI_Request* re
     }
 
     if (request_z != nullptr) {
-        MPI_Status* statuses = new MPI_Status[sizeof(MPI_Status) * 4];
+        MPI_Status* statuses = new MPI_Status[4];
         MPI_Waitall(4, request_z, statuses);
         delete[] statuses;
         delete[] request_z;
@@ -182,7 +182,7 @@ void =wait_all_requests(double* matrix, struct buffers_sms* bufs,MPI_Request* re
                 matrix[get_index(j, k, BlockSizeZ - 1)] = bufs->recv_z_n[(j - 1) * (BlockSizeY - 2) + (k - 1)];
             }
         }
-        std::cout << "After update halo request " << std::endl;
+        std::cout << "After update halo request z" << std::endl;
     }
 }
 void update_halo_os_x(double* matrix, struct buffers_sms* bufs,MPI_Request* request){
@@ -713,7 +713,7 @@ int main(int argc, char** argv)
     MPI_Request* requests_y = new MPI_Request[4];
     update_halo_os_y(u_current,&update_struct,requests_y); 
     MPI_Request* requests_z = new MPI_Request[4];
-    update_halo_os_z(u_current,&update_struct,requests_z);
+    
     // wait all
     wait_all_requests(u_current,&update_struct,requests_x,requests_y,requests_z);
     std::cout << "After update halo" << std::endl;
@@ -722,13 +722,13 @@ int main(int argc, char** argv)
     for (int step = 2; step <= STEPS; step++) {
         if (step != K) {
             MPI_Request* requests_x = new MPI_Request[4];
-            update_halo_os_x(u_current, &update_struct, requests_x);
+            update_halo_os_x(u_next, &update_struct, requests_x);
             MPI_Request* requests_y = new MPI_Request[4];
-            update_halo_os_y(u_current, &update_struct, requests_y);
+            update_halo_os_y(u_next, &update_struct, requests_y);
             MPI_Request* requests_z = new MPI_Request[4];
-            update_halo_os_z(u_current, &update_struct, requests_z);
+            update_halo_os_z(u_next, &update_struct, requests_z);
             // wait all
-            wait_all_requests(u_current, &update_struct, requests_x, requests_y, requests_z);
+            wait_all_requests(u_next, &update_struct, requests_x, requests_y, requests_z);
         }
     #pragma omp parallel for collapse(3)
         for (int i = 1; i <= BlockSizeX; i++)
@@ -767,51 +767,13 @@ int main(int argc, char** argv)
   
     double end_time =  MPI_Wtime();
 
-    bool flag = false;
+
     if(Rank == 0){ // ??
         int result_matrix_size = (N + 1) * (N + 1) * (N + 1);
         double* result_matrix;
         combined(result_matrix,u_next); // ??
         std::cout << "time" << end_time - start_time << "\n";
-        double error = 0;
-        for (int i = 0; i <= N; i++)
-            for (int j = 0; j <= N; j++)
-                for (int k = 0; k <= N; k++) {
-                        error = std::max(error, std::fabs(u_current[get_index(i, j, k)] - u_analytical(i * Hx, j * Hy, k * Hz, STEPS * Tau)));
-                }
-
-   
-        std::string calculated_filename = "calculated_for_" + std::to_string(N) + "_" + std::to_string(K) + "_" + std::to_string(T) + "_" + L_format + ".json";
-        createJson(u_current, STEPS * Tau, calculated_filename.c_str());
-
-    
-        // сохранения всех значений матрицы u_аналитической (u_20) – 
-        // Важно – значения u_analytical на шаге u_20 будем записывать в матрицу u_next, чтобы не испортить значения хранящиеся в u_current (u_20)
-        #pragma omp parallel for collapse(3)
-            for (int i = 0; i <= N; i++)
-                for (int j = 0; j <= N; j++)
-                    for (int k = 0; k <= N; k++)
-                        u_next[get_index(i, j, k)] = u_analytical(i * Hx, j * Hy, k * Hz, STEPS * Tau);
-
-        std::string analytical_filename = "analytical_for_" + std::to_string(N) + "_" + std::to_string(K) + "_" + std::to_string(T) + "_" + L_format + ".json";
-        createJson(u_next, STEPS * Tau, analytical_filename.c_str());
-
-
-        // сохранения погрешностей для всех значений разности двух матриц u_посчитанной и u_аналитической (u_20)
-        #pragma omp parallel for collapse(3)
-            for (int i = 0; i <= N; i++)
-                for (int j = 0; j <= N; j++)
-                    for (int k = 0; k <= N; k++)               
-                        u_prev[get_index(i, j, k)] = std::fabs(u_current[get_index(i, j, k)] - u_next[get_index(i, j, k)]);
-        std::string error_filename = "errors_for_" + std::to_string(N) + "_" + std::to_string(K) + "_" + std::to_string(T) + "_" + L_format + ".json";
-        createJson(u_prev, STEPS * Tau, error_filename.c_str());
-
-
-
-        std::string filename = "stats_for_" + std::to_string(N) + "_" + std::to_string(K) + "_" + std::to_string(T) + "_" + std::to_string(nthreads) + "_" + L_format + ".txt";
-        std::ofstream fout(filename, std::ios_base::app);
-        fout << N << " " << K << " " << T << " " << nthreads << " " << error << " " << end_time - start_time << std::endl;
-        fout.close();
+       // print to file
     }
 
 
