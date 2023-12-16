@@ -119,7 +119,7 @@ void alloc_update_bufs(buffers_sms* bufs)
 
 void wait_all_requests(double* matrix, struct buffers_sms* bufs,MPI_Request* request_x,MPI_Request* request_y,MPI_Request* request_z){
     if (request_x != nullptr) {
-        MPI_Status* statuses = new MPI_Status[4];
+        MPI_Status* statuses = new MPI_Status[sizeof(MPI_Status) * 4];
         MPI_Waitall(4, request_x, statuses);
         delete[] statuses;
         delete[] request_x;
@@ -138,63 +138,66 @@ void wait_all_requests(double* matrix, struct buffers_sms* bufs,MPI_Request* req
                 matrix[get_index(BlockSizeX - 1, j, k)] = bufs->recv_x_n[(j - 1) * (BlockSizeZ - 2) + (k - 1)];
             }
         }
+        std::cout << "After update halo request x" << std::endl;
     }
 
     if (request_y != nullptr) {
-        MPI_Status* statuses = new MPI_Status[4];
+        MPI_Status* statuses = new MPI_Status[sizeof(MPI_Status) * 4];
         MPI_Waitall(4, request_y, statuses);
         delete[] statuses;
         delete[] request_y;
 
         #pragma omp parallel for collapse(2)
-        for (int i = 1; i < BlockSizeX - 1; ++i){
-            for (int k = 1; k < BlockSizeZ - 1; ++k){
+        for (int i = 1; i < BlockSizeX - 1; i++){
+            for (int k = 1; k < BlockSizeZ - 1; k++){
                 matrix[get_index(i, 0, k)] = bufs->recv_y_0[(i - 1) * (BlockSizeZ - 2) + (k - 1)];
             }
         }
 
         #pragma omp parallel for collapse(2)
-        for (int i = 1; i < BlockSizeX - 1; ++i){
-            for (int k = 1; k < BlockSizeZ - 1; ++k){
+        for (int i = 1; i < BlockSizeX - 1; i++){
+            for (int k = 1; k < BlockSizeZ - 1; k++){
                 matrix[get_index(i, BlockSizeY - 1, k)] = bufs->recv_y_n[(i - 1) * (BlockSizeZ - 2) + (k - 1)];
             }
         }
+        std::cout << "After update halo request y" << std::endl;
     }
 
     if (request_z != nullptr) {
-        MPI_Status* statuses = new MPI_Status[4];
+        MPI_Status* statuses = new MPI_Status[sizeof(MPI_Status) * 4];
         MPI_Waitall(4, request_z, statuses);
         delete[] statuses;
         delete[] request_z;
 
         #pragma omp parallel for collapse(2)
-        for (int j = 1; j < BlockSizeX - 1; ++j){
-            for (int k = 1; k < BlockSizeY - 1; ++k){
+        for (int j = 1; j < BlockSizeX - 1; j++){
+            for (int k = 1; k < BlockSizeY - 1; k++){
                 matrix[get_index(j, k, 0)] = bufs->recv_z_0[(j - 1) * (BlockSizeY - 2) + (k - 1)];
             }
         }
 
         #pragma omp parallel for collapse(2)
-        for (int j = 1; j < BlockSizeX - 1; ++j){
-            for (int k = 1; k < BlockSizeY - 1; ++k){
+        for (int j = 1; j < BlockSizeX - 1; j++){
+            for (int k = 1; k < BlockSizeY - 1; k++){
                 matrix[get_index(j, k, BlockSizeZ - 1)] = bufs->recv_z_n[(j - 1) * (BlockSizeY - 2) + (k - 1)];
             }
         }
+        std::cout << "After update halo request " << std::endl;
     }
 }
 void update_halo_os_x(double* matrix, struct buffers_sms* bufs,MPI_Request* request){
     if (GridSizeX != 1) {
 
         #pragma omp parallel for collapse(2)
-        for (int j = 1; j < BlockSizeY - 1; ++j){
-            for (int k = 1; k < BlockSizeZ - 1; ++k){
+        for (int j = 1; j < BlockSizeY - 1; j++){
+            for (int k = 1; k < BlockSizeZ - 1; k++){
                 bufs->send_x_0[(j - 1) * (BlockSizeZ - 2) + (k - 1)] = matrix[get_index(1, j, k)];
             }
         }
 
         #pragma omp parallel for collapse(2)
-        for (int j = 1; j < BlockSizeY - 1; ++j){
-            for (int k = 1; k < BlockSizeZ - 1; ++k){
+        for (int j = 1; j < BlockSizeY - 1; j++){
+            for (int k = 1; k < BlockSizeZ - 1; k++){
                 bufs->send_x_n[(j - 1) * (BlockSizeZ - 2) + (k - 1)] = matrix[get_index(BlockSizeX - 2, j, k)];
             }
         }
@@ -226,15 +229,15 @@ void update_halo_os_x(double* matrix, struct buffers_sms* bufs,MPI_Request* requ
     else {
 
         #pragma omp parallel for collapse(2)
-        for (int j = 1; j < BlockSizeY - 1; ++j){
-            for (int k = 1; k < BlockSizeZ - 1; ++k){
+        for (int j = 1; j < BlockSizeY - 1; j++){
+            for (int k = 1; k < BlockSizeZ - 1; k++){
                 matrix[get_index(0, j, k)] = matrix[get_index(BlockSizeX - 2, j, k)];
             }
         }
 
         #pragma omp parallel for collapse(2)
-        for (int j = 1; j < BlockSizeY - 1; ++j){
-            for (int k = 1; k < BlockSizeZ - 1; ++k){
+        for (int j = 1; j < BlockSizeY - 1; j++){
+            for (int k = 1; k < BlockSizeZ - 1; k++){
                 matrix[get_index(BlockSizeX - 1, j, k)] = matrix[get_index(1, j, k)];
             }
         }
@@ -244,15 +247,15 @@ void update_halo_os_y(double* matrix, struct buffers_sms* bufs,MPI_Request* requ
    if (GridSizeY != 1) {
 
         #pragma omp parallel for collapse(2)
-        for (int i = 1; i < BlockSizeX - 1; ++i){
-            for (int k = 1; k < BlockSizeZ - 1; ++k){
+        for (int i = 1; i < BlockSizeX - 1; i++){
+            for (int k = 1; k < BlockSizeZ - 1; k++){
                 bufs->send_y_0[(i - 1) * (BlockSizeZ - 2) + (k - 1)] = matrix[get_index(i, 1, k)];
             }
         }
 
         #pragma omp parallel for collapse(2)
-        for (int i = 1; i < BlockSizeX - 1; ++i){
-            for (int k = 1; k < BlockSizeZ - 1; ++k){
+        for (int i = 1; i < BlockSizeX - 1; i++){
+            for (int k = 1; k < BlockSizeZ - 1; k++){
                 bufs->send_y_n[(i - 1) * (BlockSizeZ - 2) + (k - 1)] = matrix[get_index(i, BlockSizeY - 2, k)];
             }
         }
@@ -283,33 +286,33 @@ void update_halo_os_y(double* matrix, struct buffers_sms* bufs,MPI_Request* requ
     }
     else {
         #pragma omp parallel for collapse(2)
-        for (int i = 1; i < BlockSizeX - 1; ++i){
-            for (int k = 1; k < BlockSizeZ - 1; ++k){
+        for (int i = 1; i < BlockSizeX - 1; i++){
+            for (int k = 1; k < BlockSizeZ - 1; k++){
                 matrix[get_index(i, 0, k)] = matrix[get_index(i, BlockSizeY - 2, k)];
             }
         }
 
         #pragma omp parallel for collapse(2)
-        for (int i = 1; i < BlockSizeX - 1; ++i){
-            for (int k = 1; k < BlockSizeZ - 1; ++k){
+        for (int i = 1; i < BlockSizeX - 1; i++){
+            for (int k = 1; k < BlockSizeZ - 1; k++){
                 matrix[get_index(i, BlockSizeY - 1, k)] = matrix[get_index(i, 1, k)];
             }
         }
     }
 }
 void update_halo_os_z(double* matrix, struct buffers_sms* bufs, MPI_Request* request) {
-    if (GridSizeX != 1) {
+    if (GridSizeZ != 1) {
 
         #pragma omp parallel for collapse(2)
-        for (int j = 1; j < BlockSizeX - 1; ++j){
-            for (int k = 1; k < BlockSizeY - 1; ++k){
+        for (int j = 1; j < BlockSizeX - 1; j++){
+            for (int k = 1; k < BlockSizeY - 1; k++){
                 bufs->send_z_0[(j - 1) * (BlockSizeY - 2) + (k - 1)] = matrix[get_index(j, k, 1)];
             }
         }
 
         #pragma omp parallel for collapse(2)
-        for (int j = 1; j < BlockSizeX - 1; ++j){
-            for (int k = 1; k < BlockSizeY - 1; ++k){
+        for (int j = 1; j < BlockSizeX - 1; j++){
+            for (int k = 1; k < BlockSizeY - 1; k++){
                 bufs->send_z_n[(j - 1) * (BlockSizeY - 2) + (k - 1)] = matrix[get_index(j, k, BlockSizeZ - 2)];
             }
         }
@@ -340,15 +343,15 @@ void update_halo_os_z(double* matrix, struct buffers_sms* bufs, MPI_Request* req
     }
     else {
         #pragma omp parallel for collapse(2)
-        for (int j = 1; j < BlockSizeX - 1; ++j){
-            for (int k = 1; k < BlockSizeY - 1; ++k){
+        for (int j = 1; j < BlockSizeX - 1; j++){
+            for (int k = 1; k < BlockSizeY - 1; k++){
                 matrix[get_index(j, k, 0)] = matrix[get_index(j, k, BlockSizeZ - 2)];
             }
         }
 
         #pragma omp parallel for collapse(2)
-        for (int j = 1; j < BlockSizeX - 1; ++j){
-            for (int k = 1; k < BlockSizeY - 1; ++k){
+        for (int j = 1; j < BlockSizeX - 1; j++){
+            for (int k = 1; k < BlockSizeY - 1; k++){
                 matrix[get_index(j, k, BlockSizeZ - 1)] = matrix[get_index(j, k, 1)];
             }
         }
@@ -411,65 +414,84 @@ double delta_h(int i, int j, int k, double* matrix)
 }
 
 
+int max(int a, int b)
+{
+    if (a >= b)
+        return a;
+
+    return b;
+}
+
+int min(int a, int b)
+{
+    if (a <= b)
+        return a;
+
+    return b;
+}
+
+int diff3(int a, int b, int c)
+{
+    return max(max(a, b), c) - min(min(a, b), c);
+}
+
+int get_least_delimeter(int start, int n)
+{
+    for (int i = start; i < n; ++i)
+        if (n % i == 0)
+            return i;
+
+    return n;
+}
+
+int get_next_grid2(int* a, int* b, int n)
+{
+    if (*a == n)
+        return -1;
+
+    int del = get_least_delimeter((*a) + 1, n);
+    *a = del;
+    *b = n / *a;
+
+    return 0;
+}
+
+int get_next_grid3(int* a, int* b, int* c, int n)
+{
+    if (*a == n)
+        return -1;
+
+    int res = get_next_grid2(b, c, n / *a);
+    if (res == -1) {
+        int del = get_least_delimeter((*a) + 1, n);
+        *a = del;
+        *b = 1;
+        *c = n / *a;
+
+        int res = get_next_grid2(b, c, n / *a);
+    }
+
+    return 0;
+}
+
 void init_grid(int n)
 {
-    int tmp_x = 1;
-    int tmp_y = 1;
-    int tmp_z = n;
+    int tmp_x = 1, tmp_y = 1, tmp_z = n;
+    int best_x = 1, best_y = 1, best_z = n;
 
-    int res_x = 1;
-    int res_y = 1;
-    int res_z = n;
-
-    bool loop = true;
-    while (loop) {
-        if (tmp_x == n) {
-            GridSizeX = res_z;
-            GridSizeY = res_y;
-            GridSizeZ = res_x;
+    while (1) {
+        int res = get_next_grid3(&tmp_x, &tmp_y, &tmp_z, n);
+        if (res == -1) {
+            GridSizeX = best_z;
+            GridSizeY = best_y;
+            GridSizeZ = best_x;
             return;
         }
 
-        // Find the least denominator
-        int start = tmp_x + 1;
-        for (int i = start; i < n; ++i)
-            if (n % i == 0) {
-                tmp_x = i;
-                break;
-            }
-
-        // Get next grid
-        if (tmp_x != n) {
-            tmp_y = 1;
-            tmp_z = n / tmp_x;
-
-            if (tmp_x != n) {
-                int sub_start = tmp_y + 1;
-                for (int i = sub_start; i < tmp_z; ++i)
-                    if (tmp_z % i == 0) {
-                        tmp_y = i;
-                        break;
-                    }
-            }
-        }
-
-        // Calculate diff3
-        int current_diff = tmp_x;
-        if (tmp_y > current_diff)
-            current_diff = tmp_y;
-        if (tmp_z > current_diff)
-            current_diff = tmp_z;
-
-        int best_diff = res_x;
-        if (res_y > best_diff)
-            best_diff = res_y;
-        if (res_z > best_diff)
-            best_diff = res_z;
-
-        if (current_diff < best_diff) {
-            res_x = tmp_x;
-            res_y = tmp_y;
-            res_z = tmp_z;
+        if (diff3(tmp_x, tmp_y, tmp_z) < diff3(best_x, best_y, best_z)) {
+            best_x = tmp_x;
+            best_y = tmp_y;
+            best_z = tmp_z;
         }
     }
 }
@@ -574,7 +596,6 @@ void combined(double* result_matrix, const double* matrix)
 int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
-
     MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
     MPI_Comm_size(MPI_COMM_WORLD, &NumProc);
     init_grid(NumProc);
@@ -671,14 +692,16 @@ int main(int argc, char** argv)
         }
     }
 
-    MPI_Request* requests_x = new MPI_Request[4];
+    std::cout << "Before update halo" << std::endl;
+    MPI_Request* requests_x = new MPI_Request[sizeof(MPI_Request) * 4];
     update_halo_os_x(u_current,&update_struct,requests_x); 
-    MPI_Request* requests_y = new MPI_Request[4];
+    MPI_Request* requests_y = new MPI_Request[sizeof(MPI_Request) * 4];
     update_halo_os_y(u_current,&update_struct,requests_y); 
-    MPI_Request* requests_z = new MPI_Request[4];
+    MPI_Request* requests_z = new MPI_Request[sizeof(MPI_Request) * 4];
     update_halo_os_z(u_current,&update_struct,requests_z);
     // wait all
     wait_all_requests(u_current,&update_struct,requests_x,requests_y,requests_z);
+    std::cout << "After update halo" << std::endl;
 
 
     for (int step = 2; step <= STEPS; step++) {
@@ -799,6 +822,7 @@ int main(int argc, char** argv)
         delete[] update_struct.recv_z_n;
 
     MPI_Barrier(MPI_COMM_WORLD);
+    std::cout << "Finish" << std::endl;
     MPI_Finalize();
 
     return 0;

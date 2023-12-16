@@ -3,6 +3,8 @@
         "*.embeddedhtml": "html",
         "new": "cpp",
         "__config": "cpp",
-        "__nullptr": "cpp"
+        "__nullptr": "cpp",
+        "ostream": "cpp",
+        "iostream": "cpp"
     }
 }
