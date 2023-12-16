@@ -117,7 +117,7 @@ void alloc_update_bufs(buffers_sms* bufs)
     }
 }
 
-void wait_all_requests(double* matrix, struct buffers_sms* bufs,MPI_Request* request_x,MPI_Request* request_y,MPI_Request* request_z){
+void =wait_all_requests(double* matrix, struct buffers_sms* bufs,MPI_Request* request_x,MPI_Request* request_y,MPI_Request* request_z){
     if (request_x != nullptr) {
         MPI_Status* statuses = new MPI_Status[sizeof(MPI_Status) * 4];
         MPI_Waitall(4, request_x, statuses);
@@ -652,52 +652,67 @@ int main(int argc, char** argv)
 
 
     #pragma omp parallel for collapse(3)
-    for (int i = 1; i <= N; i++) 
-        for (int j = 1; j <= N; j++)
-            for (int k = 1; k <= N; k++)
+    for (int i = 1; i <= BlockSizeX; i++)
+        for (int j = 1; j <= BlockSizeY; j++)
+            for (int k = 1; k <= BlockSizeZ; k++)
                 u_prev[get_index(i, j, k)] = phi(i * Hx, j * Hy, k * Hz);
 
     #pragma omp parallel for collapse(2)
-    for (int i = 0; i <= N; i++) {
-        for (int j = 0; j <= N; j++) {
-            u_prev[get_index(0, i, j)] = u_prev[get_index(N, i, j)];
-            u_prev[get_index(N + 1, i, j)] = u_prev[get_index(1, i, j)];
-
-            u_prev[get_index(i, 0, j)] = u_prev[get_index(i, N, j)];
-            u_prev[get_index(i, N + 1, j)] = u_prev[get_index(i, 1, j)];
-
-            u_prev[get_index(i, j, 0)] = u_prev[get_index(i, j, N )];
-            u_prev[get_index(i, j, N + 1)] = u_prev[get_index(i, j, 1)];
+    for (int i = 0; i <= BlockSizeY; i++) {
+        for (int j = 0; j <= BlockSizeZ; j++) {
+            u_prev[get_index(0, i, j)] = u_prev[get_index(BlockSizeX, i, j)];
+            u_prev[get_index(BlockSizeX + 1, i, j)] = u_prev[get_index(1, i, j)];
         }
-    }   
-
+    }
+    #pragma omp parallel for collapse(2)
+    for (int i = 0; i <= BlockSizeX; i++) {
+        for (int j = 0; j <= BlockSizeZ; j++) {
+            u_prev[get_index(i, 0, j)] = u_prev[get_index(i, BlockSizeY, j)];
+            u_prev[get_index(i, BlockSizeY + 1, j)] = u_prev[get_index(i, 1, j)];
+        }
+    }
+    #pragma omp parallel for collapse(2)
+    for (int i = 0; i <= BlockSizeX; i++) {
+        for (int j = 0; j <= BlockSizeY; j++) {
+            u_prev[get_index(i, j, 0)] = u_prev[get_index(i, j, BlockSizeZ)];
+            u_prev[get_index(i, j, BlockSizeZ + 1)] = u_prev[get_index(i, j, 1)];
+        }
+    }
 
     #pragma omp parallel for collapse(3)
-    for (int i = 1; i <= N; i++)
-        for (int j = 1; j <= N; j++)
-            for (int k = 1; k <= N; k++)
+    for (int i = 1; i <= BlockSizeX; i++)
+        for (int j = 1; j <= BlockSizeY; j++)
+            for (int k = 1; k <= BlockSizeY; k++)
                 u_current[get_index(i, j, k)] = u_prev[get_index(i, j, k)] + Tau * Tau * A2 / 2 * delta_h(i, j, k, u_prev);
 
     #pragma omp parallel for collapse(2)
-    for (int i = 0; i <= N; i++) {
-        for (int j = 0; j <= N; j++) {
-            u_current[get_index(0, i, j)] = u_current[get_index(N, i, j)]; 
-            u_current[get_index(N + 1, i, j)] = u_current[get_index(1, i, j)];
-
-            u_current[get_index(i, 0, j)] = u_current[get_index(i, N, j)];
-            u_current[get_index(i, N + 1, j)] = u_current[get_index(i, 1, j)];
-
-            u_current[get_index(i, j, 0)] = u_current[get_index(i, j, N )];
-            u_current[get_index(i, j, N + 1)] = u_current[get_index(i, j, 1)];
+    for (int i = 0; i <= BlockSizeY; i++) {
+        for (int j = 0; j <= BlockSizeZ; j++) {
+            u_current[get_index(0, i, j)] = u_current[get_index(BlockSizeX, i, j)];
+            u_current[get_index(BlockSizeX + 1, i, j)] = u_current[get_index(1, i, j)];
+        }
+    }
+    #pragma omp parallel for collapse(2)
+    for (int i = 0; i <= BlockSizeX; i++) {
+        for (int j = 0; j <= BlockSizeZ; j++) {
+            u_current[get_index(i, 0, j)] = u_current[get_index(i, BlockSizeY, j)];
+            u_current[get_index(i, BlockSizeY + 1, j)] = u_current[get_index(i, 1, j)];
+        }
+    }
+    #pragma omp parallel for collapse(2)
+    for (int i = 0; i <= BlockSizeX; i++) {
+        for (int j = 0; j <= BlockSizeY; j++) {
+            u_current[get_index(i, j, 0)] = u_current[get_index(i, j, BlockSizeZ)];
+            u_current[get_index(i, j, BlockSizeZ + 1)] = u_current[get_index(i, j, 1)];
         }
     }
 
     std::cout << "Before update halo" << std::endl;
-    MPI_Request* requests_x = new MPI_Request[sizeof(MPI_Request) * 4];
+    MPI_Request* requests_x = new MPI_Request[4];
     update_halo_os_x(u_current,&update_struct,requests_x); 
-    MPI_Request* requests_y = new MPI_Request[sizeof(MPI_Request) * 4];
+    MPI_Request* requests_y = new MPI_Request[4];
     update_halo_os_y(u_current,&update_struct,requests_y); 
-    MPI_Request* requests_z = new MPI_Request[sizeof(MPI_Request) * 4];
+    MPI_Request* requests_z = new MPI_Request[4];
     update_halo_os_z(u_current,&update_struct,requests_z);
     // wait all
     wait_all_requests(u_current,&update_struct,requests_x,requests_y,requests_z);
@@ -705,33 +720,41 @@ int main(int argc, char** argv)
 
 
     for (int step = 2; step <= STEPS; step++) {
-        if (step != K){
+        if (step != K) {
             MPI_Request* requests_x = new MPI_Request[4];
-            update_halo_os_x(u_current,&update_struct,requests_x);
+            update_halo_os_x(u_current, &update_struct, requests_x);
             MPI_Request* requests_y = new MPI_Request[4];
-            update_halo_os_y(u_current,&update_struct,requests_y);
+            update_halo_os_y(u_current, &update_struct, requests_y);
             MPI_Request* requests_z = new MPI_Request[4];
-            update_halo_os_z(u_current,&update_struct,requests_z);
+            update_halo_os_z(u_current, &update_struct, requests_z);
             // wait all
-            wait_all_requests(u_current,&update_struct,requests_x,requests_y,requests_z);
+            wait_all_requests(u_current, &update_struct, requests_x, requests_y, requests_z);
         }
-        #pragma omp parallel for collapse(3)
-            for (int i = 1; i <= N; i++)
-                for (int j = 1; j <= N; j++)
-                    for (int k = 1; k <= N; k++)
-                        u_next[get_index(i, j, k)] = 2 * u_current[get_index(i, j, k)] - u_prev[get_index(i, j, k)] + Tau * Tau * A2 * delta_h(i, j, k, u_current);
+    #pragma omp parallel for collapse(3)
+        for (int i = 1; i <= BlockSizeX; i++)
+            for (int j = 1; j <= BlockSizeY; j++)
+                for (int k = 1; k <= BlockSizeZ; k++)
+                    u_next[get_index(i, j, k)] = 2 * u_current[get_index(i, j, k)] - u_prev[get_index(i, j, k)] + Tau * Tau * A2 * delta_h(i, j, k, u_current);
 
-        #pragma omp parallel for collapse(2)
-        for (int i = 0; i <= N; i++) {
-            for (int j = 0; j <= N; j++) {
-                u_next[get_index(0, i, j)] = u_next[get_index(N, i, j)]; 
-                u_next[get_index(N + 1, i, j)] = u_next[get_index(1, i, j)];
-
-                u_next[get_index(i, 0, j)] = u_next[get_index(i, N, j)];
-                u_next[get_index(i, N + 1, j)] = u_next[get_index(i, 1, j)];
-
-                u_next[get_index(i, j, 0)] = u_next[get_index(i, j, N)];
-                u_next[get_index(i, j, N + 1)] = u_next[get_index(i, j, 1)];
+    #pragma omp parallel for collapse(2)
+        for (int i = 0; i <= BlockSizeY; i++) {
+            for (int j = 0; j <= BlockSizeZ; j++) {
+                u_next[get_index(0, i, j)] = u_next[get_index(BlockSizeX, i, j)];
+                u_next[get_index(BlockSizeX + 1, i, j)] = u_next[get_index(1, i, j)];
+            }
+        }
+    #pragma omp parallel for collapse(2)
+        for (int i = 0; i <= BlockSizeX; i++) {
+            for (int j = 0; j <= BlockSizeZ; j++) {
+                u_next[get_index(i, 0, j)] = u_next[get_index(i, BlockSizeY, j)];
+                u_next[get_index(i, BlockSizeY + 1, j)] = u_next[get_index(i, 1, j)];
+            }
+        }
+    #pragma omp parallel for collapse(2)
+        for (int i = 0; i <= BlockSizeX; i++) {
+            for (int j = 0; j <= BlockSizeY; j++) {
+                u_next[get_index(i, j, 0)] = u_next[get_index(i, j, BlockSizeZ)];
+                u_next[get_index(i, j, BlockSizeZ + 1)] = u_next[get_index(i, j, 1)];
             }
         }
 
