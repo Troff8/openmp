@@ -685,7 +685,7 @@ int main(int argc, char** argv)
 
     // std::cout << "After update halo" << std::endl;
 
-
+    double global_max_error = 0.0;
     for (int step = 2; step <= STEPS; step++) {
 
         #pragma omp parallel for collapse(3)
@@ -708,12 +708,7 @@ int main(int argc, char** argv)
             }
             if(step == K){
                 double error = calc_diff(u_prev, u_current, u_next, K);
-                double global_max_error = 0.0;
-
                 MPI_Reduce(&error, &global_max_error, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-
-                if (Rank == 0)
-                    printf("error = %.10f\n", global_max_error);
             }
             else{
                 // при выходе из цикла u_20 (последнее) хранится в u_current, u_19 (пред последнее) в u_prev
@@ -746,9 +741,14 @@ int main(int argc, char** argv)
             //     }
     }
     double end_time =  MPI_Wtime();
+    double cuurent_time = end_time - start_time;
+    double max_time = 0.0;
+    MPI_Reduce(&cuurent_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
     if(Rank == 0){ 
-        std::cout << "time - " << end_time - start_time << "\n";
+        printf("error = %.10f\n", global_max_error);
+        std::cout << "time - " << max_time << "\n";
+        fflush(stdout);
     }
 
     // std::cout << "debug"<< "\n";
