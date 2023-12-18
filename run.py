@@ -1,12 +1,12 @@
 import subprocess
 s ="""source /polusfs/setenv/setup.SMPI
-#BSUB -J "OpenMP+MPI Job"
+#BSUB -J "Troff"
 #BSUB -n {}
 #BSUB -o "{}"
 #BSUB -e "/dev/null"
 #BSUB -R "affinity[core(4)]"
 OMP_NUM_THREADS={}
-mpiexec ./a.out {} {}"""
+mpiexec ./task3 {} {}"""
 for l in ('1', 'pi'):
 	for n in (128, 256):
 		for threads in (1,2,4,8):
